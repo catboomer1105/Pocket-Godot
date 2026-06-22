@@ -1,0 +1,93 @@
+name: Build iOS IPA
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-latest
+
+    env:
+      GODOT_VERSION: 4.6.3-stable
+      PROJECT_NAME: PocketGodot
+
+    steps:
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      #
+      # 下载 Godot
+      #
+      - name: Download Godot
+        run: |
+          wget https://godot-releases.nbg1.your-objectstorage.com/${GODOT_VERSION}/Godot_v${GODOT_VERSION}_macos.universal.zip
+          unzip Godot_v${GODOT_VERSION}_macos.universal.zip
+
+      #
+      # 下载 Export Templates
+      #
+      - name: Download Templates
+        run: |
+          wget https://godot-releases.nbg1.your-objectstorage.com/${GODOT_VERSION}/Godot_v${GODOT_VERSION}_export_templates.tpz
+
+      - name: Install Templates
+        run: |
+          mkdir -p ~/Library/Application\ Support/Godot/export_templates/${GODOT_VERSION}
+          unzip Godot_v${GODOT_VERSION}_export_templates.tpz
+          cp -R templates/* ~/Library/Application\ Support/Godot/export_templates/${GODOT_VERSION}/
+
+      #
+      # 导入资源
+      #
+      - name: Import
+        run: |
+          ./Godot.app/Contents/MacOS/Godot \
+          --headless \
+          --path . \
+          --import
+
+      #
+      # 导出 Xcode 工程
+      #
+      - name: Export iOS
+        run: |
+          ./Godot.app/Contents/MacOS/Godot \
+          --headless \
+          --path . \
+          --export-release "iOS"
+
+      #
+      # 编译 .app（不签名）
+      #
+      - name: Build app
+        run: |
+          xcodebuild \
+            -project build/${PROJECT_NAME}.xcodeproj \
+            -scheme ${PROJECT_NAME} \
+            -configuration Release \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            build
+
+      #
+      # 打包 ipa
+      #
+      - name: Create ipa
+        run: |
+          mkdir Payload
+
+          APP_PATH=$(find ~/Library/Developer/Xcode/DerivedData -name "${PROJECT_NAME}.app" | head -1)
+
+          cp -R "$APP_PATH" Payload/
+
+          zip -r ${PROJECT_NAME}.ipa Payload
+
+      #
+      # 上传 ipa
+      #
+      - name: Upload ipa
+        uses: actions/upload-artifact@v4
+        with:
+          name: ipa
+          path: "*.ipa"
