@@ -53,10 +53,19 @@ jobs:
       #
       - name: Export iOS
         run: |
+          mkdir -p build
           ./Godot.app/Contents/MacOS/Godot \
           --headless \
           --path . \
-          --export-release "iOS"
+          --export-release "iOS" "./build/"
+          # 验证导出产物
+          echo "=== 导出产物列表 ==="
+          ls -laR build/
+          echo "===================="
+          if [ ! -d "build/${PROJECT_NAME}.xcodeproj" ]; then
+            echo "错误: .xcodeproj 未生成，检查上面的目录列表"
+            exit 1
+          fi
 
       #
       # 编译 .app（不签名）
